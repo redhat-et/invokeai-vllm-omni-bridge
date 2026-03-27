@@ -21,11 +21,11 @@ invokeai-vllm-omni-bridge/
 │   ├── __init__.py
 │   ├── config.py             # Environment-based configuration
 │   ├── nodes_vision.py       # Visual reasoning nodes
-│   └── nodes_audio.py        # Audio reasoning nodes (stretch goal)
+│   └── nodes_audio.py        # Audio reasoning nodes
 ├── vllm_client/              # Async HTTP client library for vLLM-Omni
 │   ├── client.py
 │   └── serializers.py
-├── charts/                   # Helm chart for OpenShift deployment (stretch goal)
+├── charts/                   # Helm chart for OpenShift deployment
 │   └── invokeai-omni/
 └── pyproject.toml
 ```
@@ -113,11 +113,9 @@ pytest tests/test_serializers.py -v
 
 ---
 
-## Deployment (stretch goal)
+## Deployment
 
 The `charts/invokeai-omni/` Helm chart deploys the full stack on OpenShift using [KServe](https://kserve.github.io/website/) to serve vLLM-Omni as an `InferenceService`.
-
-See `charts/invokeai-omni/` for details (in progress).
 
 ---
 
