@@ -20,8 +20,8 @@ invokeai-vllm-omni-bridge/
 ├── invokeai_omni_nodes/      # InvokeAI custom node pack (symlinked into ~/invokeai/nodes/)
 │   ├── __init__.py
 │   ├── config.py             # Environment-based configuration
-│   ├── nodes_vision.py       # Visual reasoning nodes
-│   └── nodes_audio.py        # Audio reasoning nodes
+│   ├── nodes_text.py         # Text chat node
+│   └── nodes_vision.py       # Visual reasoning nodes
 ├── vllm_client/              # Async HTTP client library for vLLM-Omni
 │   ├── client.py
 │   └── serializers.py
@@ -78,9 +78,9 @@ ln -s "$(pwd)/invokeai_omni_nodes" ~/invokeai/nodes/invokeai_omni_nodes
 ### 5. Configure environment variables
 
 ```bash
-export VLLM_OMNI_BASE_URL="http://localhost:8000"   # vLLM-Omni server URL
-export VLLM_OMNI_API_KEY=""                          # API key (if required)
-export VLLM_OMNI_TIMEOUT=60                          # Request timeout in seconds
+export VLLM_BASE_URL="http://localhost:8000/v1"  # vLLM-Omni server URL (include /v1)
+export VLLM_API_KEY="EMPTY"                      # API key (EMPTY for unauthenticated servers)
+export VLLM_TIMEOUT=120                          # Request timeout in seconds (default: 120)
 ```
 
 Add these to your shell profile or a `.env` file to persist them.
@@ -95,9 +95,10 @@ The new nodes will appear in the node palette under the **vLLM-Omni** category.
 
 | Node | Input | Output | Description |
 |---|---|---|---|
-| `VisionDescribeNode` | Image | Text | Describes an image using vLLM-Omni's vision model |
-| `VisualReasoningToPromptNode` | Image + instruction | Text prompt | Generates a refined image generation prompt from a sketch or reference |
-| `StyleDirectorNode` | Image + instruction | Text prompt | Produces a rich, detailed style prompt for downstream generation |
+| `TextChatNode` | Text prompt | Text | Sends a text prompt to a vLLM-Omni model and returns the reply |
+| `VisionDescribeNode` | Image + instruction | Text | Describes an image using a vLLM-Omni vision model |
+
+**Coming soon**: `VisualReasoningToPromptNode`, `StyleDirectorNode`, `AudioReasoningNode`
 
 ---
 
