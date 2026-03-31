@@ -8,14 +8,14 @@ which can be wired into any downstream InvokeAI node that accepts text
 import asyncio
 from typing import Optional
 
-from invokeai.invocations.baseinvocation import (
+from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     BaseInvocationOutput,
-    InvocationContext,
     invocation,
     invocation_output,
 )
-from invokeai.invocations.fields import InputField, OutputField, UIComponent
+from invokeai.app.invocations.fields import InputField, OutputField, UIComponent
+from invokeai.app.services.shared.invocation_context import InvocationContext
 from pydantic import Field
 
 from invokeai_omni_nodes.config import config
@@ -67,6 +67,12 @@ class TextChatNode(BaseInvocation):
 
     async def _chat(self) -> str:
         """Build the message list and call the vLLM client."""
+        if not config.base_url:
+            raise RuntimeError(
+                "VLLM_BASE_URL environment variable is not set. "
+                "Export it before starting InvokeAI."
+            )
+
         messages: list[dict] = []
 
         if self.system_prompt.strip():

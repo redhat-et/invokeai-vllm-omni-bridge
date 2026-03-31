@@ -17,17 +17,6 @@ Optional environment variables:
 import os
 
 
-def _require(name: str) -> str:
-    """Return the value of a required environment variable or raise."""
-    value = os.environ.get(name)
-    if not value:
-        raise EnvironmentError(
-            f"Required environment variable '{name}' is not set. "
-            "Please export it before starting InvokeAI."
-        )
-    return value
-
-
 def _optional(name: str, default: str) -> str:
     """Return the value of an optional environment variable or its default."""
     return os.environ.get(name, default)
@@ -46,7 +35,7 @@ class BridgeConfig:
     """
 
     def __init__(self) -> None:
-        self.base_url: str = _require("VLLM_BASE_URL")
+        self.base_url: str = _optional("VLLM_BASE_URL", "")
         self.api_key: str = _optional("VLLM_API_KEY", "EMPTY")
         self.timeout: float = float(_optional("VLLM_TIMEOUT", "120"))
 

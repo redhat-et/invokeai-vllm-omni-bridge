@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "invokeai-vllm-omni-bridge"
@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [
-    { name = "Stjepan", email = "" },
+    { name = "Stjepan" },
 ]
 keywords = ["invokeai", "vllm", "multimodal", "generative-ai", "nodes"]
 classifiers = [
