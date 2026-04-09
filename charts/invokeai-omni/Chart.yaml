@@ -1,0 +1,17 @@
+apiVersion: v2
+name: invokeai-omni
+description: >
+  Helm chart for deploying the InvokeAI + vLLM-Omni bridge on OpenShift AI.
+  Packages the InvokeAI canvas (with the bridge plugin) and a KServe
+  InferenceService for the vLLM-Omni multimodal backend.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - invokeai
+  - vllm
+  - generative-ai
+  - openshift-ai
+  - kserve
+maintainers:
+  - name: Stjepan Tadic

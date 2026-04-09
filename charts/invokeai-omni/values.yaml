@@ -1,0 +1,56 @@
+# values.yaml — Default configuration for the invokeai-omni Helm chart.
+# Override any value at install time with --set or a custom values file.
+
+# ---------------------------------------------------------------------------
+# InvokeAI — the canvas / workflow engine + bridge plugin
+# ---------------------------------------------------------------------------
+invokeai:
+  image:
+    repository: ghcr.io/redhat-et/invokeai-vllm-omni-bridge
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 9090
+
+  resources:
+    requests:
+      memory: "8Gi"
+      cpu: "2"
+    limits:
+      memory: "16Gi"
+      cpu: "4"
+
+  # Environment variables passed to the InvokeAI container.
+  # vllmBaseUrl must point at the vLLM-Omni predictor service inside the cluster.
+  env:
+    vllmBaseUrl: "http://vllm-omni-predictor-default:8000/v1"
+    vllmApiKey: "EMPTY"
+    vllmTimeout: "120"
+
+# ---------------------------------------------------------------------------
+# vLLM-Omni — multimodal inference backend (deployed as a KServe ISVC)
+# ---------------------------------------------------------------------------
+vllmOmni:
+  # HuggingFace model identifier or URI understood by the KServe storage initializer.
+  # Override with a smaller model for initial testing (e.g. a turbo/quantised variant).
+  modelUri: "hf://Qwen/Qwen2.5-VL-7B-Instruct"
+
+  # Name of the ServingRuntime / ClusterServingRuntime registered in the cluster.
+  runtime: "vllm-multimodal"
+
+  resources:
+    requests:
+      nvidia.com/gpu: "1"
+      memory: "24Gi"
+      cpu: "4"
+    limits:
+      nvidia.com/gpu: "1"
+      memory: "32Gi"
+      cpu: "8"
+
+  # Extra vLLM engine arguments passed via the ISVC args field.
+  extraArgs: []
+  # - "--max-model-len=8192"
+  # - "--gpu-memory-utilization=0.90"
