@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "invokeai-omni.fullname" . }}-invokeai
+  labels:
+    {{- include "invokeai-omni.labels" . | nindent 4 }}
+    app.kubernetes.io/component: invokeai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "invokeai-omni.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: invokeai
+  template:
+    metadata:
+      labels:
+        {{- include "invokeai-omni.labels" . | nindent 8 }}
+        app.kubernetes.io/component: invokeai
+    spec:
+      containers:
+        - name: invokeai
+          image: "{{ .Values.invokeai.image.repository }}:{{ .Values.invokeai.image.tag }}"
+          imagePullPolicy: {{ .Values.invokeai.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: VLLM_BASE_URL
+              value: {{ .Values.invokeai.env.vllmBaseUrl | quote }}
+            - name: VLLM_API_KEY
+              value: {{ .Values.invokeai.env.vllmApiKey | quote }}
+            - name: VLLM_TIMEOUT
+              value: {{ .Values.invokeai.env.vllmTimeout | quote }}
+          resources:
+            requests:
+              {{- toYaml .Values.invokeai.resources.requests | nindent 14 }}
+            limits:
+              {{- toYaml .Values.invokeai.resources.limits | nindent 14 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "invokeai-omni.fullname" . }}-invokeai
+  labels:
+    {{- include "invokeai-omni.labels" . | nindent 4 }}
+    app.kubernetes.io/component: invokeai
+spec:
+  type: {{ .Values.invokeai.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.invokeai.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "invokeai-omni.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: invokeai
