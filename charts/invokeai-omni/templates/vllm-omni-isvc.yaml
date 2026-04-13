@@ -1,0 +1,23 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ include "invokeai-omni.fullname" . }}-vllm-omni
+  labels:
+    {{- include "invokeai-omni.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vllm-omni
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: vllm
+      runtime: {{ .Values.vllmOmni.runtime }}
+      storageUri: {{ .Values.vllmOmni.modelUri }}
+      resources:
+        requests:
+          {{- toYaml .Values.vllmOmni.resources.requests | nindent 10 }}
+        limits:
+          {{- toYaml .Values.vllmOmni.resources.limits | nindent 10 }}
+      {{- if .Values.vllmOmni.extraArgs }}
+      args:
+        {{- toYaml .Values.vllmOmni.extraArgs | nindent 8 }}
+      {{- end }}
