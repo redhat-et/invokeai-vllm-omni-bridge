@@ -96,9 +96,11 @@ The new nodes will appear in the node palette under the **vLLM-Omni** category.
 | Node | Input | Output | Description |
 |---|---|---|---|
 | `TextChatNode` | Text prompt | Text | Sends a text prompt to a vLLM-Omni model and returns the reply |
-| `VisionDescribeNode` | Image + instruction | Text | Describes an image using a vLLM-Omni vision model |
+| `VisionDescribeNode` | Image + instruction | Text | Describes an image in natural language |
+| `VisualReasoningToPromptNode` | Image + instruction | Text prompt | Reasons about image content and returns a generation prompt |
+| `StyleDirectorNode` | Image + instruction | Text prompt | Extracts style/aesthetic from an image and returns a generation prompt |
 
-**Coming soon**: `VisualReasoningToPromptNode`, `StyleDirectorNode`, `AudioReasoningNode`
+All nodes appear in the **vLLM-Omni** category in the InvokeAI node palette.
 
 ---
 
@@ -114,9 +116,47 @@ pytest tests/test_serializers.py -v
 
 ---
 
-## Deployment
+## Deployment (OpenShift / KServe)
 
-The `charts/invokeai-omni/` Helm chart deploys the full stack on OpenShift using [KServe](https://kserve.github.io/website/) to serve vLLM-Omni as an `InferenceService`.
+The `charts/invokeai-omni/` Helm chart deploys the full stack on OpenShift AI using [KServe](https://kserve.github.io/website/) to serve vLLM-Omni as an `InferenceService`.
+
+### Prerequisites
+
+- OpenShift cluster with the **OpenShift AI** operator installed
+- KServe enabled (bundled with OpenShift AI)
+- A `ServingRuntime` or `ClusterServingRuntime` named `vllm-multimodal` registered in the target namespace
+- At least one GPU node with sufficient VRAM (see [GPU requirements](#gpu-requirements) below)
+- `helm` CLI ≥ 3.x
+
+### Install
+
+```bash
+helm install invokeai-omni charts/invokeai-omni \
+  --namespace <your-namespace> \
+  --set vllmOmni.modelUri="hf://Qwen/Qwen2.5-VL-7B-Instruct" \
+  --set invokeai.env.vllmBaseUrl="http://<release-name>-invokeai-omni-vllm-omni-predictor-default:8000/v1"
+```
+
+Override `vllmOmni.modelUri` with any HuggingFace model ID supported by your `ServingRuntime`. For initial testing, a smaller quantised variant is recommended to reduce model download time and VRAM requirements.
+
+### Key values
+
+| Value | Default | Description |
+|---|---|---|
+| `vllmOmni.modelUri` | `hf://Qwen/Qwen2.5-VL-7B-Instruct` | HuggingFace model URI for the KServe storage initializer |
+| `vllmOmni.runtime` | `vllm-multimodal` | Name of the `ServingRuntime` registered in the cluster |
+| `vllmOmni.extraArgs` | `[]` | Extra vLLM engine flags (e.g. `--max-model-len=8192`) |
+| `invokeai.env.vllmBaseUrl` | `http://vllm-omni-predictor-default:8000/v1` | In-cluster URL of the vLLM-Omni predictor |
+| `invokeai.image.tag` | `latest` | Bridge container image tag |
+
+### GPU requirements
+
+| Model | Minimum VRAM | Recommended |
+|---|---|---|
+| Qwen2.5-VL-7B-Instruct (fp16) | 16 GB | 24 GB (A100 / H100 40 GB+) |
+| Smaller quantised variant (4-bit) | 8 GB | 16 GB |
+
+The chart requests **1 GPU** and **24 Gi memory** for the vLLM-Omni `InferenceService` by default. Adjust via `vllmOmni.resources` if your node has a different GPU size or you are running a quantised model.
 
 ---
 
