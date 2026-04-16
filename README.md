@@ -7,7 +7,7 @@ A standalone plugin and client library that integrates [InvokeAI](https://github
 
 InvokeAI is a professional-grade generative AI canvas with a composable, node-based workflow engine. vLLM-Omni is a high-throughput multimodal inference server (text + image + audio) exposing an OpenAI-compatible API.
 
-This bridge connects the two: custom InvokeAI nodes act as lightweight clients that send images (and eventually audio) to a running vLLM-Omni server and wire the responses back into the canvas as text prompts or other outputs.
+This bridge connects the two: custom InvokeAI nodes act as lightweight clients that send images to a running vLLM-Omni server and wire the responses back into the canvas as text prompts or other outputs.
 
 **Example workflow**: sketch → `VisionDescribeNode` → `StyleDirectorNode` → SDXL → photorealistic image.
 
