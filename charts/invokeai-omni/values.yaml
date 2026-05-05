@@ -35,7 +35,7 @@ invokeai:
 vllmOmni:
   # HuggingFace model identifier or URI understood by the KServe storage initializer.
   # Override with a smaller model for initial testing (e.g. a turbo/quantised variant).
-  modelUri: "hf://Qwen/Qwen2.5-VL-7B-Instruct"
+  modelUri: "hf://Qwen/Qwen2.5-Omni-7B"
 
   # Name of the ServingRuntime / ClusterServingRuntime registered in the cluster.
   runtime: "vllm-multimodal"
