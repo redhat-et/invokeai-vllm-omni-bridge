@@ -22,8 +22,18 @@ The resulting data URL can be embedded directly in an OpenAI-format message::
 
 import base64
 import io
+import os
 
 from PIL import Image
+
+
+_AUDIO_MIME_TYPES: dict[str, str] = {
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+    ".m4a": "audio/mp4",
+}
 
 
 def image_to_base64(image: Image.Image, format: str = "PNG") -> str:
@@ -82,3 +92,27 @@ def base64_to_pil(data: str) -> Image.Image:
         raise ValueError(f"Failed to decode base64 payload: {exc}") from exc
 
     return Image.open(io.BytesIO(raw))
+
+
+def audio_to_data_url(path: str) -> str:
+    """Encode an audio file as a base64 data URL suitable for OpenAI audio_url parts.
+
+    Args:
+        path: Absolute path to the audio file on disk.
+
+    Returns:
+        A data URL string, e.g. ``"data:audio/wav;base64,UklGRi..."``.
+
+    Raises:
+        ValueError: If the file extension is not a supported audio format.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    mime = _AUDIO_MIME_TYPES.get(ext)
+    if mime is None:
+        supported = ", ".join(_AUDIO_MIME_TYPES)
+        raise ValueError(
+            f"Unsupported audio format '{ext}'. Supported extensions: {supported}"
+        )
+    with open(path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:{mime};base64,{encoded}"
