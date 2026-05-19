@@ -12,6 +12,8 @@ Each node is tested for:
 3. A ``RuntimeError`` is raised when ``VLLM_BASE_URL`` is not configured.
 """
 
+import struct
+import wave
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,6 +22,7 @@ from PIL import Image
 # conftest.py has already injected the invokeai stubs, so these imports work.
 from invokeai.app.invocations.fields import ImageField
 
+from invokeai_omni_nodes.nodes_audio import AudioToPromptNode, AudioToPromptOutput
 from invokeai_omni_nodes.nodes_text import TextChatNode, TextChatOutput
 from invokeai_omni_nodes.nodes_vision import (
     StyleDirectorNode,
@@ -272,3 +275,79 @@ class TestStyleDirectorNode:
             mock_cfg.base_url = ""
             with pytest.raises(RuntimeError, match="VLLM_BASE_URL"):
                 node.invoke(ctx)
+
+
+# ---------------------------------------------------------------------------
+# AudioToPromptNode
+# ---------------------------------------------------------------------------
+
+def _write_sample_wav(path: str) -> None:
+    """Write a minimal valid WAV file (100 silent mono frames at 8 kHz)."""
+    with wave.open(path, "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(8000)
+        wf.writeframes(struct.pack("<100h", *([0] * 100)))
+
+
+class TestAudioToPromptNode:
+    def test_instantiation(self):
+        node = AudioToPromptNode(
+            audio_path="/tmp/sample.wav",
+            instruction="Describe this audio.",
+            model="test-model",
+        )
+        assert node.audio_path == "/tmp/sample.wav"
+        assert node.instruction == "Describe this audio."
+
+    def test_invoke_returns_audio_to_prompt_output(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = AudioToPromptNode(audio_path=wav, instruction="Describe this.", model="test-model")
+        client_mock = _make_client_mock("A thunderstorm at dusk, dramatic lighting.")
+        with (
+            patch("invokeai_omni_nodes.nodes_audio.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_audio.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            result = node.invoke(_make_context())
+
+        assert isinstance(result, AudioToPromptOutput)
+        assert result.prompt == "A thunderstorm at dusk, dramatic lighting."
+
+    def test_invoke_auto_discovers_model_when_blank(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = AudioToPromptNode(audio_path=wav, instruction="Describe this.", model="")
+        client_mock = _make_client_mock("Rain on cobblestones, moody street scene.")
+        with (
+            patch("invokeai_omni_nodes.nodes_audio.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_audio.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            result = node.invoke(_make_context())
+
+        assert result.prompt == "Rain on cobblestones, moody street scene."
+        client_mock.list_models.assert_awaited_once()
+
+    def test_invoke_raises_when_base_url_empty(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = AudioToPromptNode(audio_path=wav, instruction="Describe this.", model="test-model")
+        with patch("invokeai_omni_nodes.nodes_audio.config") as mock_cfg:
+            mock_cfg.base_url = ""
+            with pytest.raises(RuntimeError, match="VLLM_BASE_URL"):
+                node.invoke(_make_context())
+
+    def test_invoke_raises_when_file_not_found(self):
+        node = AudioToPromptNode(
+            audio_path="/nonexistent/path/audio.wav",
+            instruction="Describe this.",
+            model="test-model",
+        )
+        with pytest.raises(RuntimeError, match="Audio file not found"):
+            node.invoke(_make_context())

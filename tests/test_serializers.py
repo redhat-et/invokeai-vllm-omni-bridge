@@ -6,11 +6,13 @@ function tests.
 """
 
 import base64
+import struct
+import wave
 
 import pytest
 from PIL import Image
 
-from vllm_client.serializers import base64_to_pil, image_to_base64, image_to_data_url
+from vllm_client.serializers import audio_to_data_url, base64_to_pil, image_to_base64, image_to_data_url
 
 
 # ---------------------------------------------------------------------------
@@ -103,3 +105,48 @@ def test_base64_to_pil_strips_data_url_prefix():
 def test_base64_to_pil_raises_value_error_on_garbage():
     with pytest.raises(ValueError, match="Failed to decode"):
         base64_to_pil("not-valid-base64!!!")
+
+
+# ---------------------------------------------------------------------------
+# audio_to_data_url
+# ---------------------------------------------------------------------------
+
+def _write_sample_wav(path: str) -> None:
+    """Write a minimal valid WAV file (100 silent mono frames at 8 kHz)."""
+    with wave.open(path, "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(8000)
+        wf.writeframes(struct.pack("<100h", *([0] * 100)))
+
+
+def test_audio_to_data_url_wav_prefix(tmp_path):
+    path = str(tmp_path / "sample.wav")
+    _write_sample_wav(path)
+    url = audio_to_data_url(path)
+    assert url.startswith("data:audio/wav;base64,")
+
+
+def test_audio_to_data_url_payload_round_trips(tmp_path):
+    path = str(tmp_path / "sample.wav")
+    _write_sample_wav(path)
+    url = audio_to_data_url(path)
+    _, payload = url.split(",", 1)
+    decoded = base64.b64decode(payload)
+    with open(path, "rb") as f:
+        original = f.read()
+    assert decoded == original
+
+
+def test_audio_to_data_url_mp3_mime(tmp_path):
+    path = tmp_path / "sample.mp3"
+    path.write_bytes(b"\xff\xfb" + b"\x00" * 10)  # minimal MP3-like header
+    url = audio_to_data_url(str(path))
+    assert url.startswith("data:audio/mpeg;base64,")
+
+
+def test_audio_to_data_url_unsupported_extension_raises(tmp_path):
+    path = tmp_path / "audio.xyz"
+    path.write_bytes(b"fake audio data")
+    with pytest.raises(ValueError, match="Unsupported audio format"):
+        audio_to_data_url(str(path))
