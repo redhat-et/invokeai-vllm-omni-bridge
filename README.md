@@ -21,7 +21,8 @@ invokeai-vllm-omni-bridge/
 │   ├── __init__.py
 │   ├── config.py             # Environment-based configuration
 │   ├── nodes_text.py         # Text chat node
-│   └── nodes_vision.py       # Visual reasoning nodes
+│   ├── nodes_vision.py       # Visual reasoning nodes
+│   └── nodes_audio.py        # Audio-to-prompt node
 ├── vllm_client/              # Async HTTP client library for vLLM-Omni
 │   ├── client.py
 │   └── serializers.py
@@ -99,6 +100,7 @@ The new nodes will appear in the node palette under the **vLLM-Omni** category.
 | `VisionDescribeNode` | Image + instruction | Text | Describes an image in natural language |
 | `VisualReasoningToPromptNode` | Image + instruction | Text prompt | Reasons about image content and returns a generation prompt |
 | `StyleDirectorNode` | Image + instruction | Text prompt | Extracts style/aesthetic from an image and returns a generation prompt |
+| `AudioToPromptNode` | Audio file path + instruction | Text prompt | Encodes an audio file and returns an image-generation prompt describing its mood or scene |
 
 All nodes appear in the **vLLM-Omni** category in the InvokeAI node palette.
 
@@ -133,7 +135,7 @@ The `charts/invokeai-omni/` Helm chart deploys the full stack on OpenShift AI us
 ```bash
 helm install invokeai-omni charts/invokeai-omni \
   --namespace <your-namespace> \
-  --set vllmOmni.modelUri="hf://Qwen/Qwen2.5-VL-7B-Instruct" \
+  --set vllmOmni.modelUri="hf://Qwen/Qwen2.5-Omni-7B" \
   --set invokeai.env.vllmBaseUrl="http://<release-name>-invokeai-omni-vllm-omni-predictor-default:8000/v1"
 ```
 
@@ -143,7 +145,7 @@ Override `vllmOmni.modelUri` with any HuggingFace model ID supported by your `Se
 
 | Value | Default | Description |
 |---|---|---|
-| `vllmOmni.modelUri` | `hf://Qwen/Qwen2.5-VL-7B-Instruct` | HuggingFace model URI for the KServe storage initializer |
+| `vllmOmni.modelUri` | `hf://Qwen/Qwen2.5-Omni-7B` | HuggingFace model URI for the KServe storage initializer |
 | `vllmOmni.runtime` | `vllm-multimodal` | Name of the `ServingRuntime` registered in the cluster |
 | `vllmOmni.extraArgs` | `[]` | Extra vLLM engine flags (e.g. `--max-model-len=8192`) |
 | `invokeai.env.vllmBaseUrl` | `http://vllm-omni-predictor-default:8000/v1` | In-cluster URL of the vLLM-Omni predictor |
@@ -153,7 +155,7 @@ Override `vllmOmni.modelUri` with any HuggingFace model ID supported by your `Se
 
 | Model | Minimum VRAM | Recommended |
 |---|---|---|
-| Qwen2.5-VL-7B-Instruct (fp16) | 16 GB | 24 GB (A100 / H100 40 GB+) |
+| Qwen2.5-Omni-7B (fp16) | 16 GB | 24 GB (A100 / H100 40 GB+) |
 | Smaller quantised variant (4-bit) | 8 GB | 16 GB |
 
 The chart requests **1 GPU** and **24 Gi memory** for the vLLM-Omni `InferenceService` by default. Adjust via `vllmOmni.resources` if your node has a different GPU size or you are running a quantised model.
