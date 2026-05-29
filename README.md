@@ -147,7 +147,7 @@ Override `vllmOmni.modelUri` with any HuggingFace model ID supported by your `Se
 |---|---|---|
 | `vllmOmni.modelUri` | `hf://Qwen/Qwen2.5-Omni-7B` | HuggingFace model URI for the KServe storage initializer |
 | `vllmOmni.runtime` | `vllm-multimodal` | Name of the `ServingRuntime` registered in the cluster |
-| `vllmOmni.extraArgs` | `[]` | Extra vLLM engine flags (e.g. `--max-model-len=8192`) |
+| `vllmOmni.extraArgs` | `[]` | Extra vLLM engine flags. vLLM-Omni uses a multi-stage engine — use `--stage-overrides` rather than global `--gpu-memory-utilization` / `--max-model-len` flags, which do not propagate to stage engines. Example: `--stage-overrides={"0": {"gpu_memory_utilization": 0.65, "max_model_len": 16384}}` |
 | `invokeai.env.vllmBaseUrl` | `http://vllm-omni-predictor-default:8000/v1` | In-cluster URL of the vLLM-Omni predictor |
 | `invokeai.image.tag` | `latest` | Bridge container image tag |
 
@@ -155,10 +155,12 @@ Override `vllmOmni.modelUri` with any HuggingFace model ID supported by your `Se
 
 | Model | Minimum VRAM | Recommended |
 |---|---|---|
-| Qwen2.5-Omni-7B (fp16) | 16 GB | 24 GB (A100 / H100 40 GB+) |
-| Smaller quantised variant (4-bit) | 8 GB | 16 GB |
+| Qwen2.5-Omni-7B (fp16) | 40 GB (A100 40 GB with `--stage-overrides`) | 80 GB (H100 / A100 80 GB) |
+| Smaller quantised variant (4-bit) | 16 GB | 24 GB |
 
-The chart requests **1 GPU** and **24 Gi memory** for the vLLM-Omni `InferenceService` by default. Adjust via `vllmOmni.resources` if your node has a different GPU size or you are running a quantised model.
+The chart requests **1 GPU** and **24 Gi memory** for the vLLM-Omni `InferenceService` by default — adjust via `vllmOmni.resources` to match your GPU.
+
+> **Note:** Qwen2.5-Omni-7B uses a three-stage engine (thinker, audio encoder, talker). Total VRAM must accommodate all stages simultaneously; Stage 0 alone requires the bulk of the allocation. Use `--stage-overrides` via `vllmOmni.extraArgs` to tune per-stage memory — the global `--gpu-memory-utilization` flag does not propagate to stage engines.
 
 ---
 
