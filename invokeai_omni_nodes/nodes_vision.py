@@ -7,6 +7,8 @@ image-generation nodes.
 
 import asyncio
 
+from PIL import Image
+
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     BaseInvocationOutput,
@@ -18,7 +20,7 @@ from invokeai.app.services.shared.invocation_context import InvocationContext
 
 from invokeai_omni_nodes.config import config
 from vllm_client.client import VllmOmniClient
-from vllm_client.serializers import image_to_data_url
+from vllm_client.serializers import base64_to_pil, image_to_data_url
 
 
 @invocation_output("vision_describe_output")
@@ -306,3 +308,89 @@ class StyleDirectorNode(BaseInvocation):
             raise RuntimeError(
                 f"Unexpected response shape from vLLM: {response}"
             ) from exc
+
+
+# ---------------------------------------------------------------------------
+# VllmImageGenerationNode
+# ---------------------------------------------------------------------------
+
+@invocation_output("vllm_image_generation_output")
+class VllmImageGenerationOutput(BaseInvocationOutput):
+    """Output of VllmImageGenerationNode — a generated image registered in InvokeAI."""
+
+    image: ImageField = OutputField(description="The generated image.")
+
+
+@invocation(
+    "vllm_image_generation",
+    title="vLLM Image Generation",
+    tags=["vllm", "image", "generation", "flux", "diffusion"],
+    category="vLLM-Omni",
+    version="1.0.0",
+)
+class VllmImageGenerationNode(BaseInvocation):
+    """Generate an image from a text prompt via vLLM-Omni's image generation endpoint.
+
+    Intended to be served by a Flux model on a separate vLLM-Omni instance.
+    Wire the ``prompt`` output from any reasoning node (e.g.
+    ``VisualReasoningToPromptNode``) into this node to build a fully
+    vLLM-Omni-driven pipeline — no InvokeAI diffusion backend required.
+
+    Requires ``VLLM_IMAGE_BASE_URL`` pointing at the Flux vLLM-Omni instance.
+    """
+
+    prompt: str = InputField(
+        description="Text prompt describing the image to generate.",
+        ui_component=UIComponent.Textarea,
+    )
+    model: str = InputField(
+        default="",
+        description=(
+            "Model name as served by vLLM (e.g. 'black-forest-labs/FLUX.1-dev'). "
+            "Leave blank to use the first available model on the server."
+        ),
+    )
+    width: int = InputField(default=1024, description="Output image width in pixels.")
+    height: int = InputField(default=1024, description="Output image height in pixels.")
+
+    def invoke(self, context: InvocationContext) -> VllmImageGenerationOutput:
+        """Call vLLM-Omni's image generation endpoint and register the result in InvokeAI."""
+        pil_image = asyncio.run(self._generate())
+        image_dto = context.images.save(image=pil_image)
+        return VllmImageGenerationOutput(image=ImageField(image_name=image_dto.image_name))
+
+    async def _generate(self) -> Image.Image:
+        if not config.image_base_url:
+            raise RuntimeError(
+                "VLLM_IMAGE_BASE_URL environment variable is not set. "
+                "Export it before starting InvokeAI."
+            )
+
+        size = f"{self.width}x{self.height}"
+
+        async with VllmOmniClient(
+            base_url=config.image_base_url,
+            api_key=config.api_key,
+            timeout=config.timeout,
+        ) as client:
+            model = self.model.strip()
+            if not model:
+                models = await client.list_models()
+                if not models:
+                    raise RuntimeError(
+                        "No models found on the vLLM image server and no model name was provided."
+                    )
+                model = models[0]["id"]
+
+            response = await client.image_generation(
+                prompt=self.prompt, model=model, size=size
+            )
+
+        try:
+            b64_data = response["data"][0]["b64_json"]
+        except (KeyError, IndexError) as exc:
+            raise RuntimeError(
+                f"Unexpected response shape from vLLM: {response}"
+            ) from exc
+
+        return base64_to_pil(b64_data)
