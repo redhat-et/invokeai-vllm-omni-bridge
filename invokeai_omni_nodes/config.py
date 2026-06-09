@@ -5,12 +5,17 @@ are stored in code.  Set them in your shell or in a `.env` file loaded
 by your process manager.
 
 Required environment variables:
-    VLLM_BASE_URL   — Base URL of the vLLM-Omni OpenAI-compatible API
-                      (e.g. "http://localhost:8000/v1")
+    VLLM_BASE_URL         — Base URL of the vLLM-Omni reasoning instance
+                            (e.g. "http://localhost:8000/v1"). Used by all
+                            chat/vision/audio nodes.
+    VLLM_IMAGE_BASE_URL   — Base URL of the vLLM-Omni image generation instance
+                            (e.g. "http://localhost:8001/v1"). Used by
+                            VllmImageGenerationNode (Flux).
 
 Optional environment variables:
     VLLM_API_KEY    — API key sent as a Bearer token (default: "EMPTY",
-                      which is the vLLM convention for unauthenticated servers)
+                      which is the vLLM convention for unauthenticated servers).
+                      Applied to both instances.
     VLLM_TIMEOUT    — Per-request timeout in seconds (default: 120)
 """
 
@@ -36,12 +41,14 @@ class BridgeConfig:
 
     def __init__(self) -> None:
         self.base_url: str = _optional("VLLM_BASE_URL", "")
+        self.image_base_url: str = _optional("VLLM_IMAGE_BASE_URL", "")
         self.api_key: str = _optional("VLLM_API_KEY", "EMPTY")
         self.timeout: float = float(_optional("VLLM_TIMEOUT", "120"))
 
     def __repr__(self) -> str:
         return (
             f"BridgeConfig(base_url={self.base_url!r}, "
+            f"image_base_url={self.image_base_url!r}, "
             f"api_key={'***' if self.api_key != 'EMPTY' else 'EMPTY'}, "
             f"timeout={self.timeout})"
         )

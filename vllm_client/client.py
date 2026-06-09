@@ -91,6 +91,42 @@ class VllmOmniClient:
         response.raise_for_status()
         return response.json()
 
+    async def image_generation(
+        self,
+        prompt: str,
+        model: str,
+        size: str = "1024x1024",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Send an image generation request to ``POST /images/generations``.
+
+        Args:
+            prompt: Text description of the image to generate.
+            model: Model name as served by vLLM, e.g.
+                ``"black-forest-labs/FLUX.1-dev"``.
+            size: Image dimensions as ``"WxH"`` string (default: ``"1024x1024"``).
+            **kwargs: Extra fields forwarded verbatim to the request body.
+
+        Returns:
+            Parsed JSON response body as a dict (OpenAI ``ImagesResponse``
+            schema).  Image data is under ``response["data"][0]["b64_json"]``.
+
+        Raises:
+            httpx.HTTPStatusError: If the server returns a 4xx or 5xx status.
+            httpx.TimeoutException: If the request exceeds the configured timeout.
+        """
+        payload: dict[str, Any] = {
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": size,
+            "response_format": "b64_json",
+            **kwargs,
+        }
+        response = await self._http.post("/images/generations", json=payload)
+        response.raise_for_status()
+        return response.json()
+
     async def list_models(self) -> list[dict[str, Any]]:
         """Fetch the list of models available on the vLLM server (``GET /models``).
 
