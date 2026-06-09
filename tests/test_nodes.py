@@ -31,6 +31,8 @@ from invokeai_omni_nodes.nodes_vision import (
     VisionDescribeOutput,
     VisualReasoningToPromptNode,
     VisualReasoningToPromptOutput,
+    VllmImageGenerationNode,
+    VllmImageGenerationOutput,
 )
 
 
@@ -275,6 +277,107 @@ class TestStyleDirectorNode:
             mock_cfg.base_url = ""
             with pytest.raises(RuntimeError, match="VLLM_BASE_URL"):
                 node.invoke(ctx)
+
+
+# ---------------------------------------------------------------------------
+# VllmImageGenerationNode
+# ---------------------------------------------------------------------------
+
+# A 1×1 transparent PNG encoded in base64 — used as a fake vLLM image response.
+_FAKE_B64_PNG = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+_FAKE_IMAGE_RESPONSE = {"data": [{"b64_json": _FAKE_B64_PNG}]}
+
+
+def _make_image_client_mock() -> AsyncMock:
+    """Return an AsyncMock for VllmOmniClient wired for image generation calls."""
+    mock = AsyncMock()
+    mock.__aenter__ = AsyncMock(return_value=mock)
+    mock.__aexit__ = AsyncMock(return_value=False)
+    mock.list_models.return_value = [{"id": "flux-model"}]
+    mock.image_generation.return_value = _FAKE_IMAGE_RESPONSE
+    return mock
+
+
+class TestVllmImageGenerationNode:
+    def test_instantiation(self):
+        node = VllmImageGenerationNode(
+            prompt="A scenic mountain at dawn.",
+            model="black-forest-labs/FLUX.1-dev",
+            width=1024,
+            height=1024,
+        )
+        assert node.prompt == "A scenic mountain at dawn."
+        assert node.width == 1024
+
+    def test_invoke_returns_image_field(self):
+        node = VllmImageGenerationNode(
+            prompt="A scenic mountain at dawn.",
+            model="flux-model",
+            width=512,
+            height=512,
+        )
+        ctx = _make_context()
+        ctx.images.save.return_value.image_name = "generated-abc123.png"
+        client_mock = _make_image_client_mock()
+        with (
+            patch("invokeai_omni_nodes.nodes_vision.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_vision.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.image_base_url = "http://localhost:8001/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            result = node.invoke(ctx)
+
+        assert isinstance(result, VllmImageGenerationOutput)
+        assert result.image.image_name == "generated-abc123.png"
+        client_mock.image_generation.assert_awaited_once()
+
+    def test_invoke_passes_correct_size(self):
+        node = VllmImageGenerationNode(
+            prompt="A forest.", model="flux-model", width=768, height=512
+        )
+        ctx = _make_context()
+        ctx.images.save.return_value.image_name = "out.png"
+        client_mock = _make_image_client_mock()
+        with (
+            patch("invokeai_omni_nodes.nodes_vision.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_vision.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.image_base_url = "http://localhost:8001/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            node.invoke(ctx)
+
+        _, kwargs = client_mock.image_generation.call_args
+        assert kwargs["size"] == "768x512"
+
+    def test_invoke_auto_discovers_model_when_blank(self):
+        node = VllmImageGenerationNode(prompt="A forest.", model="", width=1024, height=1024)
+        ctx = _make_context()
+        ctx.images.save.return_value.image_name = "out.png"
+        client_mock = _make_image_client_mock()
+        with (
+            patch("invokeai_omni_nodes.nodes_vision.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_vision.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.image_base_url = "http://localhost:8001/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            node.invoke(ctx)
+
+        client_mock.list_models.assert_awaited_once()
+
+    def test_invoke_raises_when_image_base_url_empty(self):
+        node = VllmImageGenerationNode(
+            prompt="A forest.", model="flux-model", width=1024, height=1024
+        )
+        with patch("invokeai_omni_nodes.nodes_vision.config") as mock_cfg:
+            mock_cfg.image_base_url = ""
+            with pytest.raises(RuntimeError, match="VLLM_IMAGE_BASE_URL"):
+                node.invoke(_make_context())
 
 
 # ---------------------------------------------------------------------------

@@ -22,8 +22,9 @@ RUN /invokeai/.venv/bin/pip install --no-cache-dir /tmp/*.whl \
 # Register the node pack with InvokeAI's custom-node discovery
 COPY invokeai_omni_nodes/ /invokeai/nodes/invokeai_omni_nodes/
 
-# Override at deploy time; VLLM_BASE_URL is required
+# Override at deploy time; VLLM_BASE_URL and VLLM_IMAGE_BASE_URL are required
 ENV VLLM_BASE_URL="" \
+    VLLM_IMAGE_BASE_URL="" \
     VLLM_API_KEY="EMPTY" \
     VLLM_TIMEOUT="120"
 

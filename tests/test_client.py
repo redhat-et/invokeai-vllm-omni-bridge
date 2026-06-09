@@ -101,6 +101,69 @@ async def test_chat_completion_raises_on_auth_error():
 
 
 # ---------------------------------------------------------------------------
+# image_generation
+# ---------------------------------------------------------------------------
+
+_IMAGE_RESPONSE = {
+    "created": 1234567890,
+    "data": [{"b64_json": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="}],
+}
+
+
+@respx.mock
+async def test_image_generation_returns_parsed_response():
+    respx.post(f"{BASE_URL}/images/generations").mock(
+        return_value=httpx.Response(200, json=_IMAGE_RESPONSE)
+    )
+    async with VllmOmniClient(BASE_URL) as client:
+        result = await client.image_generation(
+            prompt="A scenic mountain landscape",
+            model="black-forest-labs/FLUX.1-dev",
+        )
+    assert result == _IMAGE_RESPONSE
+
+
+@respx.mock
+async def test_image_generation_sends_correct_payload():
+    route = respx.post(f"{BASE_URL}/images/generations").mock(
+        return_value=httpx.Response(200, json=_IMAGE_RESPONSE)
+    )
+    async with VllmOmniClient(BASE_URL) as client:
+        await client.image_generation(
+            prompt="A mountain at dawn",
+            model="my-flux-model",
+            size="512x512",
+        )
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["model"] == "my-flux-model"
+    assert payload["prompt"] == "A mountain at dawn"
+    assert payload["size"] == "512x512"
+    assert payload["response_format"] == "b64_json"
+    assert payload["n"] == 1
+
+
+@respx.mock
+async def test_image_generation_default_size_is_1024():
+    route = respx.post(f"{BASE_URL}/images/generations").mock(
+        return_value=httpx.Response(200, json=_IMAGE_RESPONSE)
+    )
+    async with VllmOmniClient(BASE_URL) as client:
+        await client.image_generation(prompt="A forest", model="test-model")
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["size"] == "1024x1024"
+
+
+@respx.mock
+async def test_image_generation_raises_on_server_error():
+    respx.post(f"{BASE_URL}/images/generations").mock(
+        return_value=httpx.Response(500, text="Internal Server Error")
+    )
+    async with VllmOmniClient(BASE_URL) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.image_generation(prompt="A forest", model="test-model")
+
+
+# ---------------------------------------------------------------------------
 # list_models
 # ---------------------------------------------------------------------------
 
