@@ -1,15 +1,17 @@
 # invokeai-vllm-omni-bridge
 
-A standalone plugin and client library that integrates [InvokeAI](https://github.com/invoke-ai/InvokeAI) with [vLLM-Omni](https://github.com/vllm-project/vllm) to enable advanced multimodal AI workflows — visual reasoning, image description, style direction, and more — directly inside the InvokeAI node canvas.
+A standalone plugin and client library that integrates [InvokeAI](https://github.com/invoke-ai/InvokeAI) with [vLLM-Omni](https://github.com/vllm-project/vllm-omni) to enable advanced multimodal AI workflows — visual reasoning, image description, style direction, audio-to-image, and direct image generation — directly inside the InvokeAI node canvas.
 
 
 ## What it does
 
 InvokeAI is a professional-grade generative AI canvas with a composable, node-based workflow engine. vLLM-Omni is a high-throughput multimodal inference server (text + image + audio) exposing an OpenAI-compatible API.
 
-This bridge connects the two: custom InvokeAI nodes act as lightweight clients that send images to a running vLLM-Omni server and wire the responses back into the canvas as text prompts or other outputs.
+This bridge connects the two: custom InvokeAI nodes act as lightweight clients for vLLM-Omni, handling multimodal reasoning, prompt generation, and image generation entirely through vLLM-Omni — no InvokeAI diffusion backend required.
 
-**Example workflow**: sketch → `VisionDescribeNode` → `StyleDirectorNode` → SDXL → photorealistic image.
+**Example workflow (unified pipeline)**: sketch → `VisualReasoningToPromptNode` → `VllmImageGenerationNode` → generated image, all inference through vLLM-Omni.
+
+**Example workflow (audio)**: audio file → `AudioToPromptNode` → `VllmImageGenerationNode` → generated image.
 
 ---
 
@@ -79,9 +81,10 @@ ln -s "$(pwd)/invokeai_omni_nodes" ~/invokeai/nodes/invokeai_omni_nodes
 ### 5. Configure environment variables
 
 ```bash
-export VLLM_BASE_URL="http://localhost:8000/v1"  # vLLM-Omni server URL (include /v1)
-export VLLM_API_KEY="EMPTY"                      # API key (EMPTY for unauthenticated servers)
-export VLLM_TIMEOUT=120                          # Request timeout in seconds (default: 120)
+export VLLM_BASE_URL="http://localhost:8000/v1"        # vLLM-Omni reasoning/chat instance
+export VLLM_IMAGE_BASE_URL="http://localhost:8001/v1"  # vLLM-Omni image generation instance
+export VLLM_API_KEY="EMPTY"                            # API key (EMPTY for unauthenticated servers)
+export VLLM_TIMEOUT=120                                # Request timeout in seconds (default: 120)
 ```
 
 Add these to your shell profile or a `.env` file to persist them.
@@ -101,6 +104,7 @@ The new nodes will appear in the node palette under the **vLLM-Omni** category.
 | `VisualReasoningToPromptNode` | Image + instruction | Text prompt | Reasons about image content and returns a generation prompt |
 | `StyleDirectorNode` | Image + instruction | Text prompt | Extracts style/aesthetic from an image and returns a generation prompt |
 | `AudioToPromptNode` | Audio file path + instruction | Text prompt | Encodes an audio file and returns an image-generation prompt describing its mood or scene |
+| `VllmImageGenerationNode` | Text prompt | Image | Calls vLLM-Omni's image generation endpoint (e.g. Flux), decodes the result, and returns an `ImageField` directly into the InvokeAI canvas |
 
 All nodes appear in the **vLLM-Omni** category in the InvokeAI node palette.
 
@@ -153,14 +157,19 @@ Override `vllmOmni.modelUri` with any HuggingFace model ID supported by your `Se
 
 ### GPU requirements
 
-| Model | Minimum VRAM | Recommended |
-|---|---|---|
-| Qwen2.5-Omni-7B (fp16) | 40 GB (A100 40 GB with `--stage-overrides`) | 80 GB (H100 / A100 80 GB) |
-| Smaller quantised variant (4-bit) | 16 GB | 24 GB |
+The bridge is model-agnostic — it works with any vLLM-Omni-compatible model served at the configured endpoints. The unified pipeline typically runs two vLLM-Omni instances (one for multimodal reasoning, one for image generation), so GPU resources must cover both simultaneously.
 
-The chart requests **1 GPU** and **24 Gi memory** for the vLLM-Omni `InferenceService` by default — adjust via `vllmOmni.resources` to match your GPU.
+The table below shows validated example configurations:
 
-> **Note:** Qwen2.5-Omni-7B uses a three-stage engine (thinker, audio encoder, talker). Total VRAM must accommodate all stages simultaneously; Stage 0 alone requires the bulk of the allocation. Use `--stage-overrides` via `vllmOmni.extraArgs` to tune per-stage memory — the global `--gpu-memory-utilization` flag does not propagate to stage engines.
+| Model | Role | Minimum VRAM | Recommended |
+|---|---|---|---|
+| Qwen2.5-Omni-7B (fp16) | Reasoning (example) | 40 GB (with `--stage-overrides`) | 80 GB (H100 / A100 80 GB) |
+| Qwen3-Omni-30B-A3B (MoE, ~3B active) | Reasoning (example) | 2× 80 GB GPUs | 2× H100 80 GB |
+| FLUX.2-klein-4B | Image generation (example) | 16 GB | 24 GB |
+
+Any vLLM-Omni-supported multimodal model can be substituted. The chart requests **1 GPU** and **24 Gi memory** for the vLLM-Omni `InferenceService` by default — adjust via `vllmOmni.resources` to match your chosen model and GPU.
+
+> **Note:** Omni-style reasoning models (e.g. Qwen2.5-Omni) use a multi-stage engine (thinker, audio encoder, talker). Total VRAM must accommodate all stages simultaneously; Stage 0 alone requires the bulk of the allocation. Use `--stage-overrides` via `vllmOmni.extraArgs` to tune per-stage memory — the global `--gpu-memory-utilization` flag does not propagate to stage engines.
 
 ---
 
