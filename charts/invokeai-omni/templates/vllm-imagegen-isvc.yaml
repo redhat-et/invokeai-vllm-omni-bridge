@@ -1,0 +1,23 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ include "invokeai-omni.fullname" . }}-vllm-imagegen
+  labels:
+    {{- include "invokeai-omni.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vllm-imagegen
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: vllm
+      runtime: {{ .Values.vllmImageGen.runtime }}
+      storageUri: {{ .Values.vllmImageGen.modelUri }}
+      resources:
+        requests:
+          {{- toYaml .Values.vllmImageGen.resources.requests | nindent 10 }}
+        limits:
+          {{- toYaml .Values.vllmImageGen.resources.limits | nindent 10 }}
+      {{- if .Values.vllmImageGen.extraArgs }}
+      args:
+        {{- toYaml .Values.vllmImageGen.extraArgs | nindent 8 }}
+      {{- end }}

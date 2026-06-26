@@ -28,6 +28,8 @@ spec:
           env:
             - name: VLLM_BASE_URL
               value: {{ .Values.invokeai.env.vllmBaseUrl | quote }}
+            - name: VLLM_IMAGE_BASE_URL
+              value: {{ .Values.invokeai.env.vllmImageBaseUrl | quote }}
             - name: VLLM_API_KEY
               value: {{ .Values.invokeai.env.vllmApiKey | quote }}
             - name: VLLM_TIMEOUT
