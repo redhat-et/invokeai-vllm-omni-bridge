@@ -23,9 +23,11 @@ invokeai:
       cpu: "4"
 
   # Environment variables passed to the InvokeAI container.
-  # vllmBaseUrl must point at the vLLM-Omni predictor service inside the cluster.
+  # vllmBaseUrl must point at the vLLM-Omni reasoning predictor service inside the cluster.
+  # vllmImageBaseUrl must point at the vLLM-Omni image generation predictor service.
   env:
     vllmBaseUrl: "http://vllm-omni-predictor-default:8000/v1"
+    vllmImageBaseUrl: "http://vllm-imagegen-predictor-default:8000/v1"
     vllmApiKey: "EMPTY"
     vllmTimeout: "120"
 
@@ -56,4 +58,30 @@ vllmOmni:
   # defaults to 0.8 utilization and will OOM on a shared GPU without overrides).
   # Use --stage-overrides to configure per-stage memory instead:
   # - "--stage-overrides={\"0\": {\"gpu_memory_utilization\": 0.65, \"max_model_len\": 16384}}"
+  extraArgs: []
+
+# ---------------------------------------------------------------------------
+# vLLM-Omni Image Generation — diffusion model backend (deployed as a KServe ISVC)
+# ---------------------------------------------------------------------------
+vllmImageGen:
+  # HuggingFace model identifier for the image generation model.
+  # FLUX.2-klein-4B is the smallest Flux variant (~8 GB weights, broadest hardware support).
+  # Override with -9B for higher quality if VRAM allows.
+  modelUri: "hf://black-forest-labs/FLUX.2-klein-4B"
+
+  # Name of the ServingRuntime / ClusterServingRuntime registered in the cluster.
+  runtime: "vllm-multimodal"
+
+  resources:
+    requests:
+      nvidia.com/gpu: "1"
+      memory: "16Gi"
+      cpu: "2"
+    limits:
+      nvidia.com/gpu: "1"
+      memory: "24Gi"
+      cpu: "4"
+
+  # Extra vLLM engine arguments. Flux is a single-stage diffusion model —
+  # no multi-stage pipeline, so --stage-overrides is not needed.
   extraArgs: []
