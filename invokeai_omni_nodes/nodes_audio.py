@@ -121,7 +121,9 @@ class AudioToPromptNode(BaseInvocation):
                     )
                 model = models[0]["id"]
 
-            response = await client.chat_completion(messages=messages, model=model)
+            response = await client.chat_completion(
+                messages=messages, model=model, modalities=["text"]
+            )
 
         try:
             return response["choices"][0]["message"]["content"]

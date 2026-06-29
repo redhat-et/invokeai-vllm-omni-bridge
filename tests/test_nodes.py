@@ -420,6 +420,23 @@ class TestAudioToPromptNode:
         assert isinstance(result, AudioToPromptOutput)
         assert result.prompt == "A thunderstorm at dusk, dramatic lighting."
 
+    def test_invoke_passes_modalities_text(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = AudioToPromptNode(audio_path=wav, instruction="Describe this.", model="test-model")
+        client_mock = _make_client_mock("A thunderstorm at dusk.")
+        with (
+            patch("invokeai_omni_nodes.nodes_audio.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_audio.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            node.invoke(_make_context())
+
+        _, kwargs = client_mock.chat_completion.call_args
+        assert kwargs["modalities"] == ["text"]
+
     def test_invoke_auto_discovers_model_when_blank(self, tmp_path):
         wav = str(tmp_path / "sample.wav")
         _write_sample_wav(wav)
