@@ -35,10 +35,10 @@ invokeai:
 # KServe — predictor naming convention (depends on serving mode)
 # ---------------------------------------------------------------------------
 kserve:
-  # RawDeployment mode (no Knative): suffix "-predictor", port 80
+  # RawDeployment mode (no Knative): suffix "-predictor", port 8000
   # Serverless mode (Knative):       suffix "-predictor-default", port 8000
   predictorSuffix: "-predictor"
-  predictorPort: 80
+  predictorPort: 8000
 
 # ---------------------------------------------------------------------------
 # ServingRuntime — tells KServe how to launch a vLLM container
