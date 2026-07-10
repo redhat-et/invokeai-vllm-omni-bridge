@@ -14,9 +14,54 @@ spec:
   containers:
     - name: kserve-container
       image: "{{ .Values.servingRuntime.image.repository }}:{{ .Values.servingRuntime.image.tag }}"
+      command:
+        - "python"
+        - "-m"
+        - "vllm.entrypoints.openai.api_server"
       args:
-        - "--port=8000"
         - "--model=/mnt/models"
+        - "--port=8000"
+      env:
+        - name: HOME
+          value: /tmp
+        - name: LOGNAME
+          value: vllm
+        - name: USER
+          value: vllm
+      ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: {{ .Values.servingRuntime.diffusionName }}
+  labels:
+    {{- include "invokeai-omni.labels" . | nindent 4 }}
+spec:
+  supportedModelFormats:
+    - name: vllm
+      version: "1"
+      autoSelect: true
+  multiModel: false
+  containers:
+    - name: kserve-container
+      image: "{{ .Values.servingRuntime.image.repository }}:{{ .Values.servingRuntime.image.tag }}"
+      command:
+        - "vllm"
+        - "serve"
+        - "/mnt/models"
+      args:
+        - "--omni"
+        - "--port=8000"
+      env:
+        - name: HOME
+          value: /tmp
+        - name: LOGNAME
+          value: vllm
+        - name: USER
+          value: vllm
       ports:
         - name: http
           containerPort: 8000

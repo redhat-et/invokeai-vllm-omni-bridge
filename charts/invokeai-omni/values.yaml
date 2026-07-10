@@ -46,12 +46,14 @@ kserve:
 servingRuntime:
   # Set to false if a suitable ServingRuntime already exists in the namespace.
   create: true
-  # Must match vllmOmni.runtime and vllmImageGen.runtime below.
+  # Must match vllmOmni.runtime below.
   name: "vllm-multimodal"
+  # Must match vllmImageGen.runtime below (diffusion models need --omni entrypoint).
+  diffusionName: "vllm-diffusion"
   image:
-    # vLLM-Omni image (NOT plain vLLM — required for omni models and diffusion).
-    # RHOAI ships its own plain vLLM (registry.redhat.io/rhaii/vllm-cuda-rhel9)
-    # but that doesn't support vLLM-Omni's multi-stage pipeline.
+    # vLLM-Omni image — shared by both runtimes (transformer + diffusion).
+    # NOT plain vLLM; RHOAI's vLLM (registry.redhat.io/rhaii/vllm-cuda-rhel9)
+    # doesn't support vLLM-Omni's multi-stage pipeline or diffusion.
     repository: docker.io/vllm/vllm-omni
     tag: "v0.22.0"
 
@@ -102,8 +104,8 @@ vllmImageGen:
   # FLUX.2-klein-4B is the smallest Flux variant (~8 GB weights, broadest hardware support).
   modelUri: "hf://black-forest-labs/FLUX.2-klein-4B"
 
-  # Must match servingRuntime.name above.
-  runtime: "vllm-multimodal"
+  # Must match servingRuntime.diffusionName above (diffusion models need --omni entrypoint).
+  runtime: "vllm-diffusion"
 
   resources:
     requests:
