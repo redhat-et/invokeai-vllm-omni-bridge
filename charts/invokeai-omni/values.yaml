@@ -23,23 +23,57 @@ invokeai:
       cpu: "4"
 
   # Environment variables passed to the InvokeAI container.
-  # vllmBaseUrl must point at the vLLM-Omni reasoning predictor service inside the cluster.
-  # vllmImageBaseUrl must point at the vLLM-Omni image generation predictor service.
+  # Leave vllmBaseUrl and vllmImageBaseUrl empty to auto-derive from ISVC names
+  # and KServe predictor naming convention. Override to point at an external endpoint.
   env:
-    vllmBaseUrl: "http://vllm-omni-predictor-default:8000/v1"
-    vllmImageBaseUrl: "http://vllm-imagegen-predictor-default:8000/v1"
+    vllmBaseUrl: ""
+    vllmImageBaseUrl: ""
     vllmApiKey: "EMPTY"
     vllmTimeout: "120"
+
+# ---------------------------------------------------------------------------
+# KServe — predictor naming convention (depends on serving mode)
+# ---------------------------------------------------------------------------
+kserve:
+  # RawDeployment mode (no Knative): suffix "-predictor", port 80
+  # Serverless mode (Knative):       suffix "-predictor-default", port 8000
+  predictorSuffix: "-predictor"
+  predictorPort: 80
+
+# ---------------------------------------------------------------------------
+# ServingRuntime — tells KServe how to launch a vLLM container
+# ---------------------------------------------------------------------------
+servingRuntime:
+  # Set to false if a suitable ServingRuntime already exists in the namespace.
+  create: true
+  # Must match vllmOmni.runtime and vllmImageGen.runtime below.
+  name: "vllm-multimodal"
+  image:
+    # vLLM-Omni image (NOT plain vLLM — required for omni models and diffusion).
+    # RHOAI ships its own plain vLLM (registry.redhat.io/rhaii/vllm-cuda-rhel9)
+    # but that doesn't support vLLM-Omni's multi-stage pipeline.
+    repository: docker.io/vllm/vllm-omni
+    tag: "v0.22.0"
+
+# ---------------------------------------------------------------------------
+# OpenShift Route — expose InvokeAI externally
+# ---------------------------------------------------------------------------
+route:
+  # Set to false on non-OpenShift clusters or if using Ingress instead.
+  create: true
+  # Leave empty to auto-generate from the cluster's apps domain.
+  host: ""
+  tls:
+    termination: edge
 
 # ---------------------------------------------------------------------------
 # vLLM-Omni — multimodal inference backend (deployed as a KServe ISVC)
 # ---------------------------------------------------------------------------
 vllmOmni:
   # HuggingFace model identifier or URI understood by the KServe storage initializer.
-  # Override with a smaller model for initial testing (e.g. a turbo/quantised variant).
   modelUri: "hf://Qwen/Qwen2.5-Omni-7B"
 
-  # Name of the ServingRuntime / ClusterServingRuntime registered in the cluster.
+  # Must match servingRuntime.name above.
   runtime: "vllm-multimodal"
 
   resources:
@@ -66,10 +100,9 @@ vllmOmni:
 vllmImageGen:
   # HuggingFace model identifier for the image generation model.
   # FLUX.2-klein-4B is the smallest Flux variant (~8 GB weights, broadest hardware support).
-  # Override with -9B for higher quality if VRAM allows.
   modelUri: "hf://black-forest-labs/FLUX.2-klein-4B"
 
-  # Name of the ServingRuntime / ClusterServingRuntime registered in the cluster.
+  # Must match servingRuntime.name above.
   runtime: "vllm-multimodal"
 
   resources:

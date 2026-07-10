@@ -27,9 +27,9 @@ spec:
               protocol: TCP
           env:
             - name: VLLM_BASE_URL
-              value: {{ .Values.invokeai.env.vllmBaseUrl | quote }}
+              value: {{ .Values.invokeai.env.vllmBaseUrl | default (include "invokeai-omni.vllmOmniPredictorUrl" .) | quote }}
             - name: VLLM_IMAGE_BASE_URL
-              value: {{ .Values.invokeai.env.vllmImageBaseUrl | quote }}
+              value: {{ .Values.invokeai.env.vllmImageBaseUrl | default (include "invokeai-omni.vllmImagegenPredictorUrl" .) | quote }}
             - name: VLLM_API_KEY
               value: {{ .Values.invokeai.env.vllmApiKey | quote }}
             - name: VLLM_TIMEOUT

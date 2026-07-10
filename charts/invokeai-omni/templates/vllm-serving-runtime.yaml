@@ -1,0 +1,24 @@
+{{- if .Values.servingRuntime.create }}
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: {{ .Values.servingRuntime.name }}
+  labels:
+    {{- include "invokeai-omni.labels" . | nindent 4 }}
+spec:
+  supportedModelFormats:
+    - name: vllm
+      version: "1"
+      autoSelect: true
+  multiModel: false
+  containers:
+    - name: kserve-container
+      image: "{{ .Values.servingRuntime.image.repository }}:{{ .Values.servingRuntime.image.tag }}"
+      args:
+        - "--port=8000"
+        - "--model=/mnt/models"
+      ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+{{- end }}

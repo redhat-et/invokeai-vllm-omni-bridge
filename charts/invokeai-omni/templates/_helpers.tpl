@@ -38,3 +38,17 @@ Selector labels — used by Deployments and Services to match pods.
 app.kubernetes.io/name: {{ include "invokeai-omni.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+vLLM-Omni predictor URL — auto-derived from the ISVC name and KServe naming convention.
+*/}}
+{{- define "invokeai-omni.vllmOmniPredictorUrl" -}}
+http://{{ include "invokeai-omni.fullname" . }}-vllm-omni{{ .Values.kserve.predictorSuffix }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.kserve.predictorPort }}/v1
+{{- end }}
+
+{{/*
+vLLM image-generation predictor URL — same pattern for the Flux ISVC.
+*/}}
+{{- define "invokeai-omni.vllmImagegenPredictorUrl" -}}
+http://{{ include "invokeai-omni.fullname" . }}-vllm-imagegen{{ .Values.kserve.predictorSuffix }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.kserve.predictorPort }}/v1
+{{- end }}

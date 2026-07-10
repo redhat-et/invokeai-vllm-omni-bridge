@@ -1,0 +1,21 @@
+{{- if .Values.route.create }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "invokeai-omni.fullname" . }}-invokeai
+  labels:
+    {{- include "invokeai-omni.labels" . | nindent 4 }}
+    app.kubernetes.io/component: invokeai
+spec:
+  {{- if .Values.route.host }}
+  host: {{ .Values.route.host }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "invokeai-omni.fullname" . }}-invokeai
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: {{ .Values.route.tls.termination }}
+{{- end }}
