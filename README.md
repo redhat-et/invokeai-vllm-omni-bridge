@@ -130,9 +130,12 @@ The `charts/invokeai-omni/` Helm chart deploys the full stack on OpenShift AI us
 
 - OpenShift cluster with the **OpenShift AI** operator installed
 - KServe enabled (bundled with OpenShift AI)
-- A `ServingRuntime` or `ClusterServingRuntime` named `vllm-multimodal` registered in the target namespace
 - At least one GPU node with sufficient VRAM (see [GPU requirements](#gpu-requirements) below)
 - `helm` CLI ≥ 3.x
+- `anyuid` SCC granted to the default service account in your target namespace (required by InvokeAI's entrypoint):
+  ```bash
+  oc adm policy add-scc-to-user anyuid -z default -n <your-namespace>
+  ```
 
 ### Install
 
@@ -141,8 +144,8 @@ helm install invokeai-omni charts/invokeai-omni \
   --namespace <your-namespace> \
   --set vllmOmni.modelUri="hf://Qwen/Qwen2.5-Omni-7B" \
   --set vllmImageGen.modelUri="hf://black-forest-labs/FLUX.2-klein-4B" \
-  --set invokeai.env.vllmBaseUrl="http://<release-name>-invokeai-omni-vllm-omni-predictor-default:8000/v1" \
-  --set invokeai.env.vllmImageBaseUrl="http://<release-name>-invokeai-omni-vllm-imagegen-predictor-default:8000/v1"
+  --set invokeai.env.vllmBaseUrl="http://<release-name>-invokeai-omni-vllm-omni-predictor.<your-namespace>.svc.cluster.local:8000/v1" \
+  --set invokeai.env.vllmImageBaseUrl="http://<release-name>-invokeai-omni-vllm-imagegen-predictor.<your-namespace>.svc.cluster.local:8000/v1"
 ```
 
 Override `vllmOmni.modelUri` and `vllmImageGen.modelUri` with any HuggingFace model IDs supported by your `ServingRuntime`. For initial testing, smaller or quantised variants are recommended to reduce model download time and VRAM requirements.
@@ -152,13 +155,13 @@ Override `vllmOmni.modelUri` and `vllmImageGen.modelUri` with any HuggingFace mo
 | Value | Default | Description |
 |---|---|---|
 | `vllmOmni.modelUri` | `hf://Qwen/Qwen2.5-Omni-7B` | HuggingFace model URI for the reasoning ISVC |
-| `vllmOmni.runtime` | `vllm-multimodal` | Name of the `ServingRuntime` registered in the cluster |
+| `vllmOmni.runtime` | `vllm-multimodal` | Name of the `ServingRuntime` to use for the reasoning ISVC. The chart creates this runtime automatically. |
 | `vllmOmni.extraArgs` | `[]` | Extra vLLM engine flags. vLLM-Omni uses a multi-stage engine — use `--stage-overrides` rather than global `--gpu-memory-utilization` / `--max-model-len` flags, which do not propagate to stage engines. Example: `--stage-overrides={"0": {"gpu_memory_utilization": 0.65, "max_model_len": 16384}}` |
 | `vllmImageGen.modelUri` | `hf://black-forest-labs/FLUX.2-klein-4B` | HuggingFace model URI for the image generation ISVC |
-| `vllmImageGen.runtime` | `vllm-multimodal` | Name of the `ServingRuntime` for the image generation model |
+| `vllmImageGen.runtime` | `vllm-diffusion` | Name of the `ServingRuntime` to use for the image generation ISVC. The chart creates this runtime automatically. |
 | `vllmImageGen.extraArgs` | `[]` | Extra vLLM engine flags for the image generation model |
-| `invokeai.env.vllmBaseUrl` | `http://vllm-omni-predictor-default:8000/v1` | In-cluster URL of the reasoning predictor |
-| `invokeai.env.vllmImageBaseUrl` | `http://vllm-imagegen-predictor-default:8000/v1` | In-cluster URL of the image generation predictor |
+| `invokeai.env.vllmBaseUrl` | `http://vllm-omni-predictor:8000/v1` | In-cluster URL of the reasoning predictor (KServe RawDeployment mode uses headless Services — use port 8000 directly) |
+| `invokeai.env.vllmImageBaseUrl` | `http://vllm-imagegen-predictor:8000/v1` | In-cluster URL of the image generation predictor |
 | `invokeai.image.tag` | `latest` | Bridge container image tag |
 
 ### GPU requirements
