@@ -162,6 +162,7 @@ Override `vllmOmni.modelUri` and `vllmImageGen.modelUri` with any HuggingFace mo
 | `vllmImageGen.extraArgs` | `[]` | Extra vLLM engine flags for the image generation model |
 | `invokeai.env.vllmBaseUrl` | `http://vllm-omni-predictor:8000/v1` | In-cluster URL of the reasoning predictor (KServe RawDeployment mode uses headless Services — use port 8000 directly) |
 | `invokeai.env.vllmImageBaseUrl` | `http://vllm-imagegen-predictor:8000/v1` | In-cluster URL of the image generation predictor |
+| `invokeai.image.repository` | `quay.io/redhat-et/invokeai-vllm-omni-bridge` | Bridge container image (published to Quay.io via GitHub Actions CI) |
 | `invokeai.image.tag` | `latest` | Bridge container image tag |
 
 ### GPU requirements

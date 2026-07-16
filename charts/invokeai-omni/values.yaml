@@ -6,7 +6,7 @@
 # ---------------------------------------------------------------------------
 invokeai:
   image:
-    repository: ghcr.io/redhat-et/invokeai-vllm-omni-bridge
+    repository: quay.io/redhat-et/invokeai-vllm-omni-bridge
     tag: latest
     pullPolicy: IfNotPresent
 
