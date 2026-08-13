@@ -6,7 +6,6 @@ which can be wired into any downstream InvokeAI node that accepts text
 """
 
 import asyncio
-from typing import Optional
 
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
@@ -16,7 +15,6 @@ from invokeai.app.invocations.baseinvocation import (
 )
 from invokeai.app.invocations.fields import InputField, OutputField, UIComponent
 from invokeai.app.services.shared.invocation_context import InvocationContext
-from pydantic import Field
 
 from invokeai_omni_nodes.config import config
 from vllm_client.client import VllmOmniClient
