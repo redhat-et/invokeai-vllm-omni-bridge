@@ -22,9 +22,11 @@ from PIL import Image
 # conftest.py has already injected the invokeai stubs, so these imports work.
 from invokeai.app.invocations.fields import ImageField
 
-from invokeai_omni_nodes.nodes_audio import AudioToPromptNode, AudioToPromptOutput
+from invokeai_omni_nodes.nodes_audio import AudioToPromptNode, AudioToPromptOutput, AudioVisualFusionNode, AudioVisualFusionOutput
 from invokeai_omni_nodes.nodes_text import TextChatNode, TextChatOutput
 from invokeai_omni_nodes.nodes_vision import (
+    MultiModalNarratorNode,
+    MultiModalNarratorOutput,
     StyleDirectorNode,
     StyleDirectorOutput,
     VisionDescribeNode,
@@ -471,3 +473,238 @@ class TestAudioToPromptNode:
         )
         with pytest.raises(RuntimeError, match="Audio file not found"):
             node.invoke(_make_context())
+
+
+# ---------------------------------------------------------------------------
+# AudioVisualFusionNode
+# ---------------------------------------------------------------------------
+
+class TestAudioVisualFusionNode:
+    def test_instantiation(self):
+        node = AudioVisualFusionNode(
+            image=ImageField(image_name="photo.png"),
+            audio_path="/tmp/sample.wav",
+            instruction="Fuse these inputs.",
+            model="test-model",
+        )
+        assert node.image.image_name == "photo.png"
+        assert node.audio_path == "/tmp/sample.wav"
+
+    def test_invoke_returns_audio_visual_fusion_output(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = AudioVisualFusionNode(
+            image=ImageField(image_name="photo.png"),
+            audio_path=wav,
+            instruction="Fuse these.",
+            model="test-model",
+        )
+        ctx = _make_context(pil_image=_sample_pil())
+        client_mock = _make_client_mock("A foggy harbour at dusk, distant foghorns echoing.")
+        with (
+            patch("invokeai_omni_nodes.nodes_audio.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_audio.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            result = node.invoke(ctx)
+
+        assert isinstance(result, AudioVisualFusionOutput)
+        assert result.prompt == "A foggy harbour at dusk, distant foghorns echoing."
+        ctx.images.get_pil.assert_called_once_with("photo.png")
+
+    def test_invoke_passes_modalities_text(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = AudioVisualFusionNode(
+            image=ImageField(image_name="photo.png"),
+            audio_path=wav,
+            instruction="Fuse these.",
+            model="test-model",
+        )
+        ctx = _make_context(pil_image=_sample_pil())
+        client_mock = _make_client_mock("A moody scene.")
+        with (
+            patch("invokeai_omni_nodes.nodes_audio.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_audio.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            node.invoke(ctx)
+
+        _, kwargs = client_mock.chat_completion.call_args
+        assert kwargs["modalities"] == ["text"]
+
+    def test_invoke_auto_discovers_model_when_blank(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = AudioVisualFusionNode(
+            image=ImageField(image_name="photo.png"),
+            audio_path=wav,
+            instruction="Fuse these.",
+            model="",
+        )
+        ctx = _make_context(pil_image=_sample_pil())
+        client_mock = _make_client_mock("An evocative scene.")
+        with (
+            patch("invokeai_omni_nodes.nodes_audio.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_audio.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            node.invoke(ctx)
+
+        client_mock.list_models.assert_awaited_once()
+
+    def test_invoke_raises_when_base_url_empty(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = AudioVisualFusionNode(
+            image=ImageField(image_name="photo.png"),
+            audio_path=wav,
+            instruction="Fuse these.",
+            model="test-model",
+        )
+        ctx = _make_context(pil_image=_sample_pil())
+        with patch("invokeai_omni_nodes.nodes_audio.config") as mock_cfg:
+            mock_cfg.base_url = ""
+            with pytest.raises(RuntimeError, match="VLLM_BASE_URL"):
+                node.invoke(ctx)
+
+    def test_invoke_raises_when_file_not_found(self):
+        node = AudioVisualFusionNode(
+            image=ImageField(image_name="photo.png"),
+            audio_path="/nonexistent/path/audio.wav",
+            instruction="Fuse these.",
+            model="test-model",
+        )
+        with pytest.raises(RuntimeError, match="Audio file not found"):
+            node.invoke(_make_context(pil_image=_sample_pil()))
+
+
+# ---------------------------------------------------------------------------
+# MultiModalNarratorNode
+# ---------------------------------------------------------------------------
+
+class TestMultiModalNarratorNode:
+    def test_instantiation(self):
+        node = MultiModalNarratorNode(
+            image_1=ImageField(image_name="frame1.png"),
+            image_2=ImageField(image_name="frame2.png"),
+            image_3=ImageField(image_name="frame3.png"),
+            audio_path="/tmp/sample.wav",
+            instruction="Find the culminating moment.",
+            model="test-model",
+        )
+        assert node.image_1.image_name == "frame1.png"
+        assert node.image_3.image_name == "frame3.png"
+        assert node.audio_path == "/tmp/sample.wav"
+
+    def test_invoke_returns_multi_modal_narrator_output(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = MultiModalNarratorNode(
+            image_1=ImageField(image_name="frame1.png"),
+            image_2=ImageField(image_name="frame2.png"),
+            image_3=ImageField(image_name="frame3.png"),
+            audio_path=wav,
+            instruction="Find the essence.",
+            model="test-model",
+        )
+        ctx = _make_context(pil_image=_sample_pil())
+        client_mock = _make_client_mock(
+            "A solitary figure at a mountain summit at dusk, the weight of a long road behind them."
+        )
+        with (
+            patch("invokeai_omni_nodes.nodes_vision.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_vision.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            result = node.invoke(ctx)
+
+        assert isinstance(result, MultiModalNarratorOutput)
+        assert "mountain summit" in result.prompt
+        assert ctx.images.get_pil.call_count == 3
+
+    def test_invoke_passes_modalities_text(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = MultiModalNarratorNode(
+            image_1=ImageField(image_name="f1.png"),
+            image_2=ImageField(image_name="f2.png"),
+            image_3=ImageField(image_name="f3.png"),
+            audio_path=wav,
+            instruction="Find the essence.",
+            model="test-model",
+        )
+        ctx = _make_context(pil_image=_sample_pil())
+        client_mock = _make_client_mock("A culminating scene.")
+        with (
+            patch("invokeai_omni_nodes.nodes_vision.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_vision.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            node.invoke(ctx)
+
+        _, kwargs = client_mock.chat_completion.call_args
+        assert kwargs["modalities"] == ["text"]
+
+    def test_invoke_auto_discovers_model_when_blank(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = MultiModalNarratorNode(
+            image_1=ImageField(image_name="f1.png"),
+            image_2=ImageField(image_name="f2.png"),
+            image_3=ImageField(image_name="f3.png"),
+            audio_path=wav,
+            instruction="Find the essence.",
+            model="",
+        )
+        ctx = _make_context(pil_image=_sample_pil())
+        client_mock = _make_client_mock("A culminating scene.")
+        with (
+            patch("invokeai_omni_nodes.nodes_vision.config") as mock_cfg,
+            patch("invokeai_omni_nodes.nodes_vision.VllmOmniClient", return_value=client_mock),
+        ):
+            mock_cfg.base_url = "http://localhost:8000/v1"
+            mock_cfg.api_key = "EMPTY"
+            mock_cfg.timeout = 30.0
+            node.invoke(ctx)
+
+        client_mock.list_models.assert_awaited_once()
+
+    def test_invoke_raises_when_base_url_empty(self, tmp_path):
+        wav = str(tmp_path / "sample.wav")
+        _write_sample_wav(wav)
+        node = MultiModalNarratorNode(
+            image_1=ImageField(image_name="f1.png"),
+            image_2=ImageField(image_name="f2.png"),
+            image_3=ImageField(image_name="f3.png"),
+            audio_path=wav,
+            instruction="Find the essence.",
+            model="test-model",
+        )
+        ctx = _make_context(pil_image=_sample_pil())
+        with patch("invokeai_omni_nodes.nodes_vision.config") as mock_cfg:
+            mock_cfg.base_url = ""
+            with pytest.raises(RuntimeError, match="VLLM_BASE_URL"):
+                node.invoke(ctx)
+
+    def test_invoke_raises_when_file_not_found(self):
+        node = MultiModalNarratorNode(
+            image_1=ImageField(image_name="f1.png"),
+            image_2=ImageField(image_name="f2.png"),
+            image_3=ImageField(image_name="f3.png"),
+            audio_path="/nonexistent/path/audio.wav",
+            instruction="Find the essence.",
+            model="test-model",
+        )
+        with pytest.raises(RuntimeError, match="Audio file not found"):
+            node.invoke(_make_context(pil_image=_sample_pil()))
