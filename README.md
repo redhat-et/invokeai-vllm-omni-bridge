@@ -1,17 +1,21 @@
 # invokeai-vllm-omni-bridge
 
-A standalone plugin and client library that integrates [InvokeAI](https://github.com/invoke-ai/InvokeAI) with [vLLM-Omni](https://github.com/vllm-project/vllm-omni) to enable advanced multimodal AI workflows — visual reasoning, image description, style direction, audio-to-image, and direct image generation — directly inside the InvokeAI node canvas.
+A standalone plugin and client library that integrates [InvokeAI](https://github.com/invoke-ai/InvokeAI) with [vLLM-Omni](https://github.com/vllm-project/vllm-omni) to enable advanced multimodal AI workflows (visual reasoning, image description, style direction, audio-to-image, simultaneous image+audio fusion, and direct image generation) directly inside the InvokeAI node canvas.
 
 
 ## What it does
 
-InvokeAI is a professional-grade generative AI canvas with a composable, node-based workflow engine. vLLM-Omni is a high-throughput multimodal inference server (text + image + audio) exposing an OpenAI-compatible API.
+InvokeAI is a professional-grade generative AI canvas with a composable, node-based workflow engine. vLLM-Omni is a high-throughput multimodal inference server (text + image + audio + video) exposing an OpenAI-compatible API.
 
-This bridge connects the two: custom InvokeAI nodes act as lightweight clients for vLLM-Omni, handling multimodal reasoning, prompt generation, and image generation entirely through vLLM-Omni — no InvokeAI diffusion backend required.
+This bridge connects the two: custom InvokeAI nodes act as lightweight clients for vLLM-Omni, handling multimodal reasoning, prompt generation, and image generation entirely through vLLM-Omni. No InvokeAI diffusion backend required.
 
-**Example workflow (unified pipeline)**: sketch → `VisualReasoningToPromptNode` → `VllmImageGenerationNode` → generated image, all inference through vLLM-Omni.
+**Example workflow (visual reasoning)**: sketch → `VisualReasoningToPromptNode` → `VllmImageGenerationNode` → generated image, all inference through vLLM-Omni.
 
 **Example workflow (audio)**: audio file → `AudioToPromptNode` → `VllmImageGenerationNode` → generated image.
+
+**Example workflow (audio-visual fusion)**: image + audio file → `AudioVisualFusionNode` → `VllmImageGenerationNode` → generated image capturing the fused atmosphere of both inputs.
+
+**Example workflow (multimodal narrative)**: 3 images (beginning / middle / end) + audio file → `MultiModalNarratorNode` → `VllmImageGenerationNode` → generated image of the culminating moment the sequence points toward.
 
 ---
 
@@ -104,6 +108,8 @@ The new nodes will appear in the node palette under the **vLLM-Omni** category.
 | `VisualReasoningToPromptNode` | Image + instruction | Text prompt | Reasons about image content and returns a generation prompt |
 | `StyleDirectorNode` | Image + instruction | Text prompt | Extracts style/aesthetic from an image and returns a generation prompt |
 | `AudioToPromptNode` | Audio file path + instruction | Text prompt | Encodes an audio file and returns an image-generation prompt describing its mood or scene |
+| `AudioVisualFusionNode` | Image + audio file path + instruction | Text prompt | Sends image and audio **simultaneously** in one request; the model reasons about both at the same time and produces a prompt that captures what neither input could convey alone |
+| `MultiModalNarratorNode` | 3 images + audio file path + instruction | Text prompt | Treats three images as a temporal sequence with audio as the emotional throughline; reasons about the arc to produce a single prompt capturing the **culminating moment** of the narrative |
 | `VllmImageGenerationNode` | Text prompt | Image | Calls vLLM-Omni's image generation endpoint (e.g. Flux), decodes the result, and returns an `ImageField` directly into the InvokeAI canvas |
 
 All nodes appear in the **vLLM-Omni** category in the InvokeAI node palette.
@@ -156,18 +162,18 @@ Override `vllmOmni.modelUri` and `vllmImageGen.modelUri` with any HuggingFace mo
 |---|---|---|
 | `vllmOmni.modelUri` | `hf://Qwen/Qwen2.5-Omni-7B` | HuggingFace model URI for the reasoning ISVC |
 | `vllmOmni.runtime` | `vllm-multimodal` | Name of the `ServingRuntime` to use for the reasoning ISVC. The chart creates this runtime automatically. |
-| `vllmOmni.extraArgs` | `[]` | Extra vLLM engine flags. vLLM-Omni uses a multi-stage engine — use `--stage-overrides` rather than global `--gpu-memory-utilization` / `--max-model-len` flags, which do not propagate to stage engines. Example: `--stage-overrides={"0": {"gpu_memory_utilization": 0.65, "max_model_len": 16384}}` |
+| `vllmOmni.extraArgs` | `[]` | Extra vLLM engine flags. vLLM-Omni uses a multi-stage engine, so use `--stage-overrides` rather than global `--gpu-memory-utilization` / `--max-model-len` flags, which do not propagate to stage engines. Example: `--stage-overrides={"0": {"gpu_memory_utilization": 0.65, "max_model_len": 16384}}` |
 | `vllmImageGen.modelUri` | `hf://black-forest-labs/FLUX.2-klein-4B` | HuggingFace model URI for the image generation ISVC |
 | `vllmImageGen.runtime` | `vllm-diffusion` | Name of the `ServingRuntime` to use for the image generation ISVC. The chart creates this runtime automatically. |
 | `vllmImageGen.extraArgs` | `[]` | Extra vLLM engine flags for the image generation model |
-| `invokeai.env.vllmBaseUrl` | `http://vllm-omni-predictor:8000/v1` | In-cluster URL of the reasoning predictor (KServe RawDeployment mode uses headless Services — use port 8000 directly) |
+| `invokeai.env.vllmBaseUrl` | `http://vllm-omni-predictor:8000/v1` | In-cluster URL of the reasoning predictor (KServe RawDeployment mode uses headless Services, so use port 8000 directly) |
 | `invokeai.env.vllmImageBaseUrl` | `http://vllm-imagegen-predictor:8000/v1` | In-cluster URL of the image generation predictor |
 | `invokeai.image.repository` | `quay.io/redhat-et/invokeai-vllm-omni-bridge` | Bridge container image (published to Quay.io via GitHub Actions CI) |
 | `invokeai.image.tag` | `latest` | Bridge container image tag |
 
 ### GPU requirements
 
-The bridge is model-agnostic — it works with any vLLM-Omni-compatible model served at the configured endpoints. The unified pipeline typically runs two vLLM-Omni instances (one for multimodal reasoning, one for image generation), so GPU resources must cover both simultaneously.
+The bridge is model-agnostic and works with any vLLM-Omni-compatible model served at the configured endpoints. The unified pipeline typically runs two vLLM-Omni instances (one for multimodal reasoning, one for image generation), so GPU resources must cover both simultaneously.
 
 The table below shows validated example configurations:
 
@@ -177,12 +183,12 @@ The table below shows validated example configurations:
 | Qwen3-Omni-30B-A3B (MoE, ~3B active) | Reasoning (example) | 2× 80 GB GPUs | 2× H100 80 GB |
 | FLUX.2-klein-4B | Image generation (example) | 16 GB | 24 GB |
 
-Any vLLM-Omni-supported multimodal model can be substituted. The chart requests **1 GPU** and **24 Gi memory** for the vLLM-Omni `InferenceService` by default — adjust via `vllmOmni.resources` to match your chosen model and GPU.
+Any vLLM-Omni-supported multimodal model can be substituted. The chart requests **1 GPU** and **24 Gi memory** for the vLLM-Omni `InferenceService` by default; adjust via `vllmOmni.resources` to match your chosen model and GPU.
 
-> **Note:** Omni-style reasoning models (e.g. Qwen2.5-Omni) use a multi-stage engine (thinker, audio encoder, talker). Total VRAM must accommodate all stages simultaneously; Stage 0 alone requires the bulk of the allocation. Use `--stage-overrides` via `vllmOmni.extraArgs` to tune per-stage memory — the global `--gpu-memory-utilization` flag does not propagate to stage engines.
+> **Note:** Omni-style reasoning models (e.g. Qwen2.5-Omni) use a multi-stage engine (thinker, talker, and a generation stage). Total VRAM must accommodate all stages simultaneously; Stage 0 alone requires the bulk of the allocation. Use `--stage-overrides` via `vllmOmni.extraArgs` to tune per-stage memory, as the global `--gpu-memory-utilization` flag does not propagate to stage engines.
 
 ---
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+Apache 2.0. See [LICENSE](LICENSE).
