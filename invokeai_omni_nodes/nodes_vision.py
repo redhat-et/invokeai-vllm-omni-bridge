@@ -6,6 +6,7 @@ image-generation nodes.
 """
 
 import asyncio
+import os
 
 from PIL import Image
 
@@ -20,7 +21,7 @@ from invokeai.app.services.shared.invocation_context import InvocationContext
 
 from invokeai_omni_nodes.config import config
 from vllm_client.client import VllmOmniClient
-from vllm_client.serializers import base64_to_pil, image_to_data_url
+from vllm_client.serializers import audio_to_data_url, base64_to_pil, image_to_data_url
 
 
 @invocation_output("vision_describe_output")
@@ -301,6 +302,140 @@ class StyleDirectorNode(BaseInvocation):
                 model = models[0]["id"]
 
             response = await client.chat_completion(messages=messages, model=model)
+
+        try:
+            return response["choices"][0]["message"]["content"]
+        except (KeyError, IndexError) as exc:
+            raise RuntimeError(
+                f"Unexpected response shape from vLLM: {response}"
+            ) from exc
+
+
+# ---------------------------------------------------------------------------
+# MultiModalNarratorNode
+# ---------------------------------------------------------------------------
+
+_MULTI_MODAL_NARRATOR_SYSTEM_PROMPT = (
+    "You are an expert prompt engineer for text-to-image models. "
+    "You will receive a sequence of images representing moments in a journey or narrative, "
+    "and an audio clip that provides the emotional throughline connecting them. "
+    "Do not describe each image separately or blend them together. "
+    "Instead, reason about the ARC: what changes across the sequence, what builds, "
+    "what does the journey lead toward? Let the audio shape the emotional register of your answer. "
+    "Produce a single, concise image-generation prompt (no more than 120 words) that captures "
+    "the CULMINATING MOMENT or ESSENCE of this narrative — the image that represents where "
+    "this story leads or what it means. This image should show something none of the individual "
+    "frames contain directly. "
+    "The prompt must be rich in visual detail: subject, composition, lighting, colour palette, "
+    "style, and mood. "
+    "Do not include explanations, preamble, or markdown — output only the prompt text."
+)
+
+
+@invocation_output("multi_modal_narrator_output")
+class MultiModalNarratorOutput(BaseInvocationOutput):
+    """Output of MultiModalNarratorNode — a prompt capturing the arc of a visual/audio sequence."""
+
+    prompt: str = OutputField(
+        description="Image-generation prompt capturing the culminating moment of the narrative"
+    )
+
+
+@invocation(
+    "multi_modal_narrator",
+    title="vLLM Multi-Modal Narrator",
+    tags=["vllm", "llm", "vision", "audio", "narrative", "sequence", "multimodal"],
+    category="vLLM-Omni",
+    version="1.0.0",
+)
+class MultiModalNarratorNode(BaseInvocation):
+    """Send a sequence of images and an audio clip to vLLM-Omni in a single request.
+
+    The three images are treated as frames of a journey or narrative — not blended,
+    but reasoned about as an arc. The audio provides the emotional throughline.
+    The model produces a single prompt capturing the *culminating moment* of the
+    sequence: the image that represents where the story leads, showing something
+    none of the individual frames contain directly.
+
+    Wire the ``prompt`` output into ``VllmImageGenerationNode`` to generate the
+    narrative's conclusion as an image.
+
+    Requires ``VLLM_BASE_URL`` pointing at a vLLM-Omni instance that supports
+    image and audio inputs (e.g. ``Qwen/Qwen2.5-Omni-7B``).
+    """
+
+    image_1: ImageField = InputField(description="First frame of the sequence (beginning).")
+    image_2: ImageField = InputField(description="Second frame of the sequence (middle).")
+    image_3: ImageField = InputField(description="Third frame of the sequence (end).")
+    audio_path: str = InputField(
+        description=(
+            "Absolute path to the audio file that provides the emotional throughline "
+            "(supported formats: WAV, MP3, OGG, FLAC, M4A)."
+        ),
+    )
+    instruction: str = InputField(
+        default="Find the culminating moment or essence of this sequence.",
+        description="Additional direction for the narrative compression.",
+        ui_component=UIComponent.Textarea,
+    )
+    model: str = InputField(
+        default="",
+        description=(
+            "Model name as served by vLLM (e.g. 'Qwen/Qwen2.5-Omni-7B'). "
+            "Leave blank to use the first available model on the server."
+        ),
+    )
+
+    def invoke(self, context: InvocationContext) -> MultiModalNarratorOutput:
+        """Encode all inputs, send them together to vLLM-Omni, return the narrative prompt."""
+        if not os.path.isfile(self.audio_path):
+            raise RuntimeError(f"Audio file not found: {self.audio_path}")
+        data_urls = [
+            image_to_data_url(context.images.get_pil(self.image_1.image_name)),
+            image_to_data_url(context.images.get_pil(self.image_2.image_name)),
+            image_to_data_url(context.images.get_pil(self.image_3.image_name)),
+        ]
+        audio_data_url = audio_to_data_url(self.audio_path)
+        prompt = asyncio.run(self._narrate(data_urls, audio_data_url))
+        return MultiModalNarratorOutput(prompt=prompt)
+
+    async def _narrate(self, image_data_urls: list[str], audio_data_url: str) -> str:
+        """Build the interleaved multimodal message and call vLLM-Omni."""
+        if not config.base_url:
+            raise RuntimeError(
+                "VLLM_BASE_URL environment variable is not set. "
+                "Export it before starting InvokeAI."
+            )
+
+        content: list[dict] = []
+        for i, url in enumerate(image_data_urls, start=1):
+            content.append({"type": "text", "text": f"Frame {i}:"})
+            content.append({"type": "image_url", "image_url": {"url": url}})
+        content.append({"type": "audio_url", "audio_url": {"url": audio_data_url}})
+        content.append({"type": "text", "text": self.instruction})
+
+        messages = [
+            {"role": "system", "content": _MULTI_MODAL_NARRATOR_SYSTEM_PROMPT},
+            {"role": "user", "content": content},
+        ]
+
+        async with VllmOmniClient(
+            base_url=config.base_url,
+            api_key=config.api_key,
+            timeout=config.timeout,
+        ) as client:
+            model = self.model.strip()
+            if not model:
+                models = await client.list_models()
+                if not models:
+                    raise RuntimeError(
+                        "No models found on the vLLM server and no model name was provided."
+                    )
+                model = models[0]["id"]
+
+            response = await client.chat_completion(
+                messages=messages, model=model, modalities=["text"]
+            )
 
         try:
             return response["choices"][0]["message"]["content"]

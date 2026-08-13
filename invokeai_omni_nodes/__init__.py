@@ -1,6 +1,6 @@
 from invokeai_omni_nodes.nodes_text import TextChatNode
-from invokeai_omni_nodes.nodes_vision import VisionDescribeNode, VisualReasoningToPromptNode, StyleDirectorNode, VllmImageGenerationNode
-from invokeai_omni_nodes.nodes_audio import AudioToPromptNode
+from invokeai_omni_nodes.nodes_vision import VisionDescribeNode, VisualReasoningToPromptNode, StyleDirectorNode, VllmImageGenerationNode, MultiModalNarratorNode
+from invokeai_omni_nodes.nodes_audio import AudioToPromptNode, AudioVisualFusionNode
 
 __all__ = [
     "TextChatNode",
@@ -9,4 +9,6 @@ __all__ = [
     "StyleDirectorNode",
     "VllmImageGenerationNode",
     "AudioToPromptNode",
+    "AudioVisualFusionNode",
+    "MultiModalNarratorNode",
 ]
