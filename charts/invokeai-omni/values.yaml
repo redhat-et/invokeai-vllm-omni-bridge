@@ -55,7 +55,7 @@ servingRuntime:
     # NOT plain vLLM; RHOAI's vLLM (registry.redhat.io/rhaii/vllm-cuda-rhel9)
     # doesn't support vLLM-Omni's multi-stage pipeline or diffusion.
     repository: docker.io/vllm/vllm-omni
-    tag: "v0.22.0"
+    tag: "v0.26.0"
 
 # ---------------------------------------------------------------------------
 # OpenShift Route — expose InvokeAI externally
